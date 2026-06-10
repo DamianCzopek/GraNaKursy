@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Code Runner – Nauka Programowania</title>
+  <title>Gra na kursy to jest tego typu benc</title>
   <style>
     /* =============================================
        ZMIENNE I RESET
@@ -281,9 +281,9 @@
 // ─────────────────────────────────────────────
 const CANVAS_W  = 800;
 const CANVAS_H  = 450;
-const GRAVITY   = 0.55;
+const GRAVITY   = 0.90;
 const JUMP_VEL  = -13;
-const PLAYER_SPEED = 4.5;
+const PLAYER_SPEED = 5;
 const GROUND_Y  = CANVAS_H - 60;   // y podłogi
 const PLATFORM_H = 14;
 
@@ -329,7 +329,7 @@ const levelupMsg     = document.getElementById('levelup-msg');
 let state;          // 'start' | 'playing' | 'paused' | 'gameover' | 'levelup'
 let score;
 let lives;
-let energy;         // 0–100
+let energy;         // 0–67
 let level;
 let combo;
 let comboTimer;
@@ -362,8 +362,8 @@ const keys = {};    // aktualnie wciśnięte klawisze
  */
 function initGame() {
   score       = 0;
-  lives       = 3;
-  energy      = 100;
+  lives       = 15;
+  energy      = 67;
   level       = 1;
   combo       = 1;
   comboTimer  = 0;
