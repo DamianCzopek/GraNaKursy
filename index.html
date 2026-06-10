@@ -1,0 +1,1361 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Code Runner – Nauka Programowania</title>
+  <style>
+    /* =============================================
+       ZMIENNE I RESET
+    ============================================= */
+    :root {
+      --bg:         #0d1117;
+      --surface:    #161b22;
+      --border:     #30363d;
+      --green:      #3fb950;
+      --blue:       #58a6ff;
+      --yellow:     #e3b341;
+      --red:        #f85149;
+      --purple:     #bc8cff;
+      --text:       #c9d1d9;
+      --text-dim:   #8b949e;
+      --mono:       'Courier New', monospace;
+      --sans:       'Segoe UI', system-ui, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* =============================================
+       HUD – INTERFEJS UŻYTKOWNIKA
+    ============================================= */
+    #hud {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      width: 800px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    .hud-block { display: flex; flex-direction: column; gap: 2px; }
+    .hud-label { color: var(--text-dim); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+
+    #score-val   { color: var(--green);  font-size: 20px; font-weight: bold; }
+    #lives-val   { color: var(--red);    font-size: 20px; }
+    #level-val   { color: var(--blue);   font-size: 20px; }
+    #combo-val   { color: var(--yellow); font-size: 20px; }
+    #concept-val { color: var(--purple); font-size: 11px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* pasek życia */
+    #life-bar-wrap { flex: 1; }
+    #life-bar-bg   { background: var(--border); border-radius: 4px; height: 8px; overflow: hidden; }
+    #life-bar-fill { background: var(--green); height: 100%; border-radius: 4px; transition: width .3s, background .3s; }
+
+    /* =============================================
+       CANVAS
+    ============================================= */
+    #gameCanvas {
+      display: block;
+      border: 1px solid var(--border);
+      border-top: none;
+      border-bottom: none;
+      cursor: none;
+      image-rendering: pixelated;
+    }
+
+    /* =============================================
+       PANEL PRZYCISKÓW
+    ============================================= */
+    #controls {
+      display: flex;
+      gap: 10px;
+      width: 800px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: 2px solid var(--border);
+      border-radius: 0 0 8px 8px;
+      align-items: center;
+    }
+
+    .btn {
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .btn:hover         { background: #21262d; border-color: var(--blue); }
+    .btn.primary       { background: var(--green); color: #0d1117; border-color: var(--green); font-weight: bold; }
+    .btn.primary:hover { background: #2ea043; }
+
+    #hint-text {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      margin-left: auto;
+    }
+
+    /* =============================================
+       EKRANY NAKŁADKOWE
+    ============================================= */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: rgba(13,17,23,.92);
+      z-index: 10;
+      text-align: center;
+      padding: 32px;
+    }
+    .overlay.hidden { display: none; }
+
+    .overlay h1 {
+      font-family: var(--mono);
+      font-size: 32px;
+      color: var(--green);
+      letter-spacing: .04em;
+    }
+    .overlay h2 {
+      font-family: var(--mono);
+      font-size: 22px;
+      color: var(--yellow);
+    }
+    .overlay p  { font-size: 14px; color: var(--text-dim); max-width: 420px; line-height: 1.6; }
+    .overlay .big-score { font-family: var(--mono); font-size: 48px; color: var(--green); }
+
+    /* =============================================
+       POPUP KONCEPTU
+    ============================================= */
+    #concept-popup {
+      position: absolute;
+      top: 60px; left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface);
+      border: 1px solid var(--purple);
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--purple);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .3s;
+      white-space: nowrap;
+      z-index: 5;
+    }
+    #concept-popup.show { opacity: 1; }
+
+    /* =============================================
+       WRAPPER CANVAS (dla pozycjonowania overlayów)
+    ============================================= */
+    #canvas-wrap {
+      position: relative;
+      width: 800px;
+      height: 450px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- =============================================
+     HUD – INTERFEJS UŻYTKOWNIKA
+============================================= -->
+<div id="hud">
+  <div class="hud-block">
+    <span class="hud-label">Wynik</span>
+    <span id="score-val">0</span>
+  </div>
+  <div class="hud-block">
+    <span class="hud-label">Życia</span>
+    <span id="lives-val">❤❤❤</span>
+  </div>
+  <div class="hud-block">
+    <span class="hud-label">Poziom</span>
+    <span id="level-val">1</span>
+  </div>
+  <div class="hud-block">
+    <span class="hud-label">Combo</span>
+    <span id="combo-val">x1</span>
+  </div>
+  <div class="hud-block life-bar-wrap" style="flex:1">
+    <span class="hud-label">Energia gracza</span>
+    <div id="life-bar-bg"><div id="life-bar-fill" style="width:100%"></div></div>
+  </div>
+  <div class="hud-block">
+    <span class="hud-label">Ostatni koncept</span>
+    <span id="concept-val">—</span>
+  </div>
+</div>
+
+<!-- =============================================
+     CANVAS + NAKŁADKI
+============================================= -->
+<div id="canvas-wrap">
+  <canvas id="gameCanvas" width="800" height="450"></canvas>
+
+  <!-- Popup konceptu -->
+  <div id="concept-popup">📘 Zmienne</div>
+
+  <!-- Ekran startowy -->
+  <div class="overlay" id="screen-start">
+    <h1>&lt;Code Runner /&gt;</h1>
+    <p>Zbieraj tokeny reprezentujące koncepcje programistyczne.<br>
+       Unikaj Bugów 🐛 – pochłaniają Twoją energię.<br>
+       Skacz na <kbd>SPACJA</kbd> lub <kbd>↑</kbd>, ruszaj <kbd>←</kbd> <kbd>→</kbd>.</p>
+    <button class="btn primary" id="btn-start">▶ Rozpocznij grę</button>
+  </div>
+
+  <!-- Ekran pauzy -->
+  <div class="overlay hidden" id="screen-pause">
+    <h2>⏸ Pauza</h2>
+    <p>Naciśnij <strong>P</strong> lub kliknij poniżej, aby kontynuować.</p>
+    <button class="btn primary" id="btn-resume">▶ Wróć do gry</button>
+    <button class="btn" id="btn-restart-pause">↺ Restart</button>
+  </div>
+
+  <!-- Ekran końca gry -->
+  <div class="overlay hidden" id="screen-gameover">
+    <h2>💀 Game Over</h2>
+    <div class="big-score" id="final-score">0</div>
+    <p id="final-msg">Dobry wynik! Spróbuj pobić rekord.</p>
+    <button class="btn primary" id="btn-restart">↺ Zagraj ponownie</button>
+  </div>
+
+  <!-- Ekran nowego poziomu -->
+  <div class="overlay hidden" id="screen-levelup">
+    <h1 id="levelup-title">Poziom 2!</h1>
+    <p id="levelup-msg">Bugi poruszają się szybciej. Uważaj!</p>
+  </div>
+</div>
+
+<!-- =============================================
+     PANEL PRZYCISKÓW (dolny)
+============================================= -->
+<div id="controls">
+  <button class="btn primary" id="btn-jump">⬆ Skok (SPACJA)</button>
+  <button class="btn" id="btn-pause-ctrl">⏸ Pauza (P)</button>
+  <button class="btn" id="btn-restart-ctrl">↺ Restart</button>
+  <span id="hint-text">← → : ruch &nbsp;|&nbsp; SPACJA / ↑ : skok &nbsp;|&nbsp; P : pauza</span>
+</div>
+
+<script>
+/* =============================================
+   ██████╗  █████╗ ███╗   ███╗███████╗
+  ██╔════╝ ██╔══██╗████╗ ████║██╔════╝
+  ██║  ███╗███████║██╔████╔██║█████╗
+  ██║   ██║██╔══██║██║╚██╔╝██║██╔══╝
+  ╚██████╔╝██║  ██║██║ ╚═╝ ██║███████╗
+   ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝
+  Code Runner – Nauka Programowania
+  ============================================= */
+
+// ─────────────────────────────────────────────
+// 1. STAŁE I KONFIGURACJA
+// ─────────────────────────────────────────────
+const CANVAS_W  = 800;
+const CANVAS_H  = 450;
+const GRAVITY   = 0.55;
+const JUMP_VEL  = -13;
+const PLAYER_SPEED = 4.5;
+const GROUND_Y  = CANVAS_H - 60;   // y podłogi
+const PLATFORM_H = 14;
+
+/** Koncepcje programistyczne przypisane do tokenów */
+const CONCEPTS = [
+  { name: 'Zmienne',        color: '#58a6ff', symbol: 'var' },
+  { name: 'Pętle',          color: '#3fb950', symbol: 'for' },
+  { name: 'Funkcje',        color: '#bc8cff', symbol: 'fn()' },
+  { name: 'Warunki',        color: '#e3b341', symbol: 'if' },
+  { name: 'Tablice',        color: '#f78166', symbol: '[]' },
+  { name: 'Obiekty',        color: '#79c0ff', symbol: '{}' },
+  { name: 'Rekurencja',     color: '#d2a8ff', symbol: 'rec' },
+  { name: 'Algorytmy',      color: '#ffa657', symbol: 'alg' },
+  { name: 'Klasy',          color: '#7ee787', symbol: 'cls' },
+  { name: 'API',            color: '#a5d6ff', symbol: 'api' },
+];
+
+// ─────────────────────────────────────────────
+// 2. DOSTĘP DO ELEMENTÓW DOM
+// ─────────────────────────────────────────────
+const canvas       = document.getElementById('gameCanvas');
+const ctx          = canvas.getContext('2d');
+const hudScore     = document.getElementById('score-val');
+const hudLives     = document.getElementById('lives-val');
+const hudLevel     = document.getElementById('level-val');
+const hudCombo     = document.getElementById('combo-val');
+const hudConcept   = document.getElementById('concept-val');
+const lifeBarFill  = document.getElementById('life-bar-fill');
+const conceptPopup = document.getElementById('concept-popup');
+
+const screenStart    = document.getElementById('screen-start');
+const screenPause    = document.getElementById('screen-pause');
+const screenGameover = document.getElementById('screen-gameover');
+const screenLevelup  = document.getElementById('screen-levelup');
+const finalScore     = document.getElementById('final-score');
+const finalMsg       = document.getElementById('final-msg');
+const levelupTitle   = document.getElementById('levelup-title');
+const levelupMsg     = document.getElementById('levelup-msg');
+
+// ─────────────────────────────────────────────
+// 3. STAN GRY
+// ─────────────────────────────────────────────
+let state;          // 'start' | 'playing' | 'paused' | 'gameover' | 'levelup'
+let score;
+let lives;
+let energy;         // 0–100
+let level;
+let combo;
+let comboTimer;
+let animationId;
+let lastTime;
+
+let player;         // obiekt gracza
+let platforms;      // tablica platform
+let tokens;         // zbieralne tokeny
+let bugs;           // wrogowie
+let particles;      // cząsteczki efektów
+let bgStars;        // gwiazdy w tle
+let scrollOffset;   // przewijanie tła
+
+const keys = {};    // aktualnie wciśnięte klawisze
+
+// ─────────────────────────────────────────────
+// 4. INICJALIZACJA GRY
+// ─────────────────────────────────────────────
+
+/**
+ * initGame()
+ * Cel: Resetuje cały stan gry do wartości początkowych dla danego poziomu
+ *      i tworzy wszystkie obiekty sceny.
+ * Kiedy wywoływana: Po kliknięciu "Zagraj", "Restart" lub po awansie na nowy poziom.
+ * Argumenty: brak
+ * Zwraca: brak (modyfikuje zmienne globalne)
+ * Współpracuje z: createPlayer(), createPlatforms(), spawnTokens(), spawnBugs(),
+ *                 createBgStars(), updateHUD()
+ */
+function initGame() {
+  score       = 0;
+  lives       = 3;
+  energy      = 100;
+  level       = 1;
+  combo       = 1;
+  comboTimer  = 0;
+  scrollOffset = 0;
+  particles   = [];
+
+  player     = createPlayer();
+  platforms  = createPlatforms(level);
+  tokens     = spawnTokens(8 + level * 2);
+  bugs       = spawnBugs(2 + level);
+  bgStars    = createBgStars(60);
+
+  updateHUD();
+}
+
+// ─────────────────────────────────────────────
+// 5. FABRYKI OBIEKTÓW
+// ─────────────────────────────────────────────
+
+/**
+ * createPlayer()
+ * Cel: Tworzy obiekt gracza z domyślną pozycją, prędkością i stanem.
+ * Kiedy wywoływana: Tylko przez initGame().
+ * Argumenty: brak
+ * Zwraca: {x, y, w, h, vx, vy, onGround, facingRight, frame, animTimer, invTimer}
+ * Współpracuje z: movePlayer(), drawPlayer()
+ */
+function createPlayer() {
+  return {
+    x: 80, y: GROUND_Y - 48,
+    w: 32, h: 48,
+    vx: 0, vy: 0,
+    onGround: false,
+    facingRight: true,
+    frame: 0,          // klatka animacji (0-3)
+    animTimer: 0,
+    invTimer: 0,       // czas nietykalności po obrażeniach
+  };
+}
+
+/**
+ * createPlatforms(lvl)
+ * Cel: Generuje tablicę platform o pozycjach dostosowanych do poziomu.
+ * Kiedy wywoływana: Przez initGame() i levelUp().
+ * Argumenty: lvl {number} – numer aktualnego poziomu (wpływa na liczbę platform)
+ * Zwraca: Array<{x, y, w, h, color}>
+ * Współpracuje z: drawPlatforms(), checkPlatformCollision()
+ */
+function createPlatforms(lvl) {
+  const plats = [
+    // podłoga – rozciągnięta poza canvas
+    { x: -50, y: GROUND_Y, w: CANVAS_W + 100, h: 60, color: '#21262d' },
+  ];
+  const configs = [
+    { x: 120, y: 300, w: 130, h: PLATFORM_H },
+    { x: 310, y: 240, w: 110, h: PLATFORM_H },
+    { x: 480, y: 185, w: 140, h: PLATFORM_H },
+    { x: 640, y: 270, w: 100, h: PLATFORM_H },
+    { x: 200, y: 160, w: 120, h: PLATFORM_H },
+    { x: 50,  y: 220, w: 90,  h: PLATFORM_H },
+  ];
+  const count = Math.min(3 + lvl, configs.length);
+  for (let i = 0; i < count; i++) {
+    plats.push({ ...configs[i], color: '#30363d' });
+  }
+  return plats;
+}
+
+/**
+ * spawnTokens(count)
+ * Cel: Losowo rozmieszcza tokeny konceptów programistycznych na scenie.
+ * Kiedy wywoływana: Przez initGame(), levelUp() i refillTokens().
+ * Argumenty: count {number} – liczba tokenów do wygenerowania
+ * Zwraca: Array<{x, y, r, concept, collected, bobOffset, bobSpeed, glowPhase}>
+ * Współpracuje z: drawTokens(), checkTokenCollision()
+ */
+function spawnTokens(count) {
+  const list = [];
+  for (let i = 0; i < count; i++) {
+    const concept = CONCEPTS[Math.floor(Math.random() * CONCEPTS.length)];
+    list.push({
+      x: 60 + Math.random() * (CANVAS_W - 120),
+      y: 80 + Math.random() * (GROUND_Y - 140),
+      r: 18,
+      concept,
+      collected: false,
+      bobOffset: Math.random() * Math.PI * 2,
+      bobSpeed:  0.03 + Math.random() * 0.02,
+      glowPhase: Math.random() * Math.PI * 2,
+    });
+  }
+  return list;
+}
+
+/**
+ * spawnBugs(count)
+ * Cel: Tworzy obiekty wrogów (Bugów) poruszających się po platformach.
+ * Kiedy wywoływana: Przez initGame() i levelUp().
+ * Argumenty: count {number} – liczba bugów
+ * Zwraca: Array<{x, y, w, h, vx, platformIndex, color, legPhase}>
+ * Współpracuje z: moveBugs(), drawBugs(), checkBugCollision()
+ */
+function spawnBugs(count) {
+  const list = [];
+  const bugSpeed = 1.5 + level * 0.4;
+  for (let i = 0; i < count; i++) {
+    const platIdx = 1 + (i % Math.max(1, platforms.length - 1));
+    const plat = platforms[platIdx] || platforms[0];
+    list.push({
+      x: plat.x + Math.random() * Math.max(0, plat.w - 40),
+      y: plat.y - 28,
+      w: 28, h: 28,
+      vx: (Math.random() < .5 ? 1 : -1) * bugSpeed,
+      platformIndex: platIdx,
+      color: '#f85149',
+      legPhase: Math.random() * Math.PI * 2,
+    });
+  }
+  return list;
+}
+
+/**
+ * createBgStars(count)
+ * Cel: Generuje gwiazdy tła sceny dla efektu paralaksy.
+ * Kiedy wywoływana: Przez initGame().
+ * Argumenty: count {number} – liczba gwiazd
+ * Zwraca: Array<{x, y, r, speed, alpha}>
+ * Współpracuje z: drawBackground()
+ */
+function createBgStars(count) {
+  const stars = [];
+  for (let i = 0; i < count; i++) {
+    stars.push({
+      x: Math.random() * CANVAS_W,
+      y: Math.random() * (GROUND_Y - 20),
+      r: .5 + Math.random() * 1.5,
+      speed: .1 + Math.random() * .4,
+      alpha: .3 + Math.random() * .5,
+    });
+  }
+  return stars;
+}
+
+// ─────────────────────────────────────────────
+// 6. GŁÓWNA PĘTLA GRY
+// ─────────────────────────────────────────────
+
+/**
+ * gameLoop(timestamp)
+ * Cel: Główna pętla gry – wywołuje update i render co klatkę.
+ *      Oblicza delta time i ogranicza je (zapobiega skokom po nieaktywności).
+ * Kiedy wywoływana: Automatycznie przez requestAnimationFrame.
+ * Argumenty: timestamp {DOMHighResTimeStamp} – czas z początku działania przeglądarki
+ * Zwraca: brak
+ * Współpracuje z: update(), render()
+ */
+function gameLoop(timestamp) {
+  const dt = Math.min((timestamp - (lastTime || timestamp)) / 16.67, 3);
+  lastTime = timestamp;
+
+  if (state === 'playing') {
+    update(dt);
+    render();
+  }
+
+  animationId = requestAnimationFrame(gameLoop);
+}
+
+// ─────────────────────────────────────────────
+// 7. UPDATE – LOGIKA GRY
+// ─────────────────────────────────────────────
+
+/**
+ * update(dt)
+ * Cel: Aktualizuje cały stan gry na jedną klatkę: ruch, fizykę, kolizje, timery.
+ * Kiedy wywoływana: Co klatkę z gameLoop(), tylko gdy state === 'playing'.
+ * Argumenty: dt {number} – współczynnik delta-time (1.0 = normalna prędkość)
+ * Zwraca: brak
+ * Współpracuje z: movePlayer(), moveBugs(), updateParticles(), checkTokenCollision(),
+ *                 checkBugCollision(), refillTokens(), checkLevelUp(), updateHUD()
+ */
+function update(dt) {
+  scrollOffset += 0.3 * dt;
+
+  movePlayer(dt);
+  moveBugs(dt);
+  updateParticles(dt);
+
+  // timery
+  player.animTimer += dt;
+  if (player.animTimer > 8) { player.frame = (player.frame + 1) % 4; player.animTimer = 0; }
+  if (player.invTimer > 0) player.invTimer -= dt;
+  if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) combo = 1; }
+
+  checkTokenCollision();
+  checkBugCollision();
+  refillTokens();
+  checkLevelUp();
+  updateHUD();
+}
+
+// ─────────────────────────────────────────────
+// 8. STEROWANIE POSTACIĄ
+// ─────────────────────────────────────────────
+
+/**
+ * movePlayer(dt)
+ * Cel: Oblicza ruch gracza na podstawie wciśniętych klawiszy, grawitacji i kolizji.
+ *      Obsługuje chodzenie, skakanie i lądowanie na platformach.
+ * Kiedy wywoływana: Co klatkę przez update().
+ * Argumenty: dt {number} – delta-time
+ * Zwraca: brak
+ * Współpracuje z: keys{}, checkPlatformCollision(), player{}
+ */
+function movePlayer(dt) {
+  // ruch poziomy
+  if (keys['ArrowLeft']  || keys['a'] || keys['A']) {
+    player.vx = -PLAYER_SPEED;
+    player.facingRight = false;
+  } else if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+    player.vx = PLAYER_SPEED;
+    player.facingRight = true;
+  } else {
+    player.vx *= 0.75; // tarcie
+  }
+
+  // skok
+  if ((keys['ArrowUp'] || keys[' '] || keys['w'] || keys['W']) && player.onGround) {
+    player.vy = JUMP_VEL;
+    player.onGround = false;
+  }
+
+  // grawitacja
+  player.vy += GRAVITY * dt;
+
+  // ruch
+  player.x += player.vx * dt;
+  player.y += player.vy * dt;
+
+  // ograniczenie poziome
+  player.x = Math.max(0, Math.min(CANVAS_W - player.w, player.x));
+
+  // kolizje z platformami
+  player.onGround = false;
+  checkPlatformCollision();
+
+  // spadnięcie poza ekran (kara)
+  if (player.y > CANVAS_H + 20) {
+    takeDamage(30, 'Spadłeś!');
+    player.x = 80;
+    player.y = GROUND_Y - player.h - 2;
+    player.vy = 0;
+  }
+}
+
+/**
+ * checkPlatformCollision()
+ * Cel: Wykrywa i rozwiązuje kolizje gracza z platformami (lądowanie od góry).
+ * Kiedy wywoływana: Co klatkę przez movePlayer().
+ * Argumenty: brak (działa na globalnych player, platforms)
+ * Zwraca: brak
+ * Współpracuje z: player{}, platforms[]
+ */
+function checkPlatformCollision() {
+  for (const p of platforms) {
+    const prevBottom = player.y + player.h - player.vy;
+    const currBottom = player.y + player.h;
+
+    const overlapX = player.x + player.w > p.x && player.x < p.x + p.w;
+    const falling  = player.vy >= 0;
+    const crossTop = prevBottom <= p.y + 2 && currBottom >= p.y;
+
+    if (overlapX && falling && crossTop) {
+      player.y = p.y - player.h;
+      player.vy = 0;
+      player.onGround = true;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// 9. RUCH WROGÓW
+// ─────────────────────────────────────────────
+
+/**
+ * moveBugs(dt)
+ * Cel: Przemieszcza Bugi wzdłuż platform – gdy dotrą do krawędzi, zawracają.
+ * Kiedy wywoływana: Co klatkę przez update().
+ * Argumenty: dt {number} – delta-time
+ * Zwraca: brak
+ * Współpracuje z: bugs[], platforms[]
+ */
+function moveBugs(dt) {
+  for (const bug of bugs) {
+    bug.x += bug.vx * dt;
+    bug.legPhase += 0.2 * dt;
+
+    const plat = platforms[bug.platformIndex];
+    if (!plat) continue;
+
+    // zawracanie na krawędzi platformy
+    if (bug.x < plat.x || bug.x + bug.w > plat.x + plat.w) {
+      bug.vx *= -1;
+      bug.x = Math.max(plat.x, Math.min(plat.x + plat.w - bug.w, bug.x));
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// 10. KOLIZJE – TOKENY I BUGI
+// ─────────────────────────────────────────────
+
+/**
+ * checkTokenCollision()
+ * Cel: Sprawdza, czy gracz zebrał token (kolizja koło-prostokąt).
+ *      Jeśli tak: dodaje punkty, aktualizuje combo, pokazuje efekty i popup.
+ * Kiedy wywoływana: Co klatkę przez update().
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: player{}, tokens[], spawnParticles(), showConceptPopup(), updateHUD()
+ */
+function checkTokenCollision() {
+  for (const t of tokens) {
+    if (t.collected) continue;
+
+    // odległość centrum tokenu od centrum gracza
+    const cx = player.x + player.w / 2;
+    const cy = player.y + player.h / 2;
+    const dist = Math.hypot(t.x - cx, t.y - cy);
+
+    if (dist < t.r + Math.min(player.w, player.h) / 2) {
+      t.collected = true;
+      combo++;
+      comboTimer = 120;
+
+      const pts = 10 * combo * level;
+      score += pts;
+
+      spawnParticles(t.x, t.y, t.concept.color, 12);
+      showConceptPopup(t.concept.name);
+      hudConcept.textContent = t.concept.name;
+    }
+  }
+}
+
+/**
+ * checkBugCollision()
+ * Cel: Sprawdza kolizję AABB gracza z każdym Bugiem.
+ *      Jeśli gracz nie jest nietykalny, zadaje obrażenia.
+ * Kiedy wywoływana: Co klatkę przez update().
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: player{}, bugs[], takeDamage()
+ */
+function checkBugCollision() {
+  if (player.invTimer > 0) return;
+
+  for (const bug of bugs) {
+    if (
+      player.x < bug.x + bug.w &&
+      player.x + player.w > bug.x &&
+      player.y < bug.y + bug.h &&
+      player.y + player.h > bug.y
+    ) {
+      takeDamage(25, '🐛 Bug!');
+    }
+  }
+}
+
+/**
+ * takeDamage(amount, reason)
+ * Cel: Odbiera energię gracza i aktualizuje życia. Jeśli energia = 0, traci życie.
+ *      Gdy brak żyć, kończy grę.
+ * Kiedy wywoływana: Przez checkBugCollision() i movePlayer() (upadek).
+ * Argumenty: amount {number} – wartość odjętej energii; reason {string} – opis
+ * Zwraca: brak
+ * Współpracuje z: player{}, energy, lives, endGame(), showConceptPopup()
+ */
+function takeDamage(amount, reason) {
+  energy -= amount;
+  player.invTimer = 60;
+  combo = 1;
+  spawnParticles(player.x + player.w / 2, player.y, '#f85149', 8);
+  showConceptPopup('⚠ ' + reason);
+
+  if (energy <= 0) {
+    energy = 0;
+    lives--;
+    if (lives <= 0) {
+      endGame();
+    } else {
+      energy = 100;
+      showConceptPopup('💔 Życie utracone! Pozostało: ' + lives);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// 11. CZĄSTECZKI EFEKTÓW
+// ─────────────────────────────────────────────
+
+/**
+ * spawnParticles(x, y, color, count)
+ * Cel: Tworzy eksplozję cząsteczek w punkcie (x,y) dla efektów wizualnych.
+ * Kiedy wywoływana: Przez checkTokenCollision() i takeDamage().
+ * Argumenty: x,y {number} – pozycja; color {string} – kolor CSS; count {number} – liczba
+ * Zwraca: brak
+ * Współpracuje z: particles[], updateParticles(), drawParticles()
+ */
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 / count) * i + Math.random() * .5;
+    const speed = 2 + Math.random() * 4;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 2,
+      r: 3 + Math.random() * 4,
+      color,
+      life: 1.0,
+      decay: 0.025 + Math.random() * 0.025,
+    });
+  }
+}
+
+/**
+ * updateParticles(dt)
+ * Cel: Przesuwa cząsteczki i zmniejsza ich życie (alpha). Usuwa martwe.
+ * Kiedy wywoływana: Co klatkę przez update().
+ * Argumenty: dt {number} – delta-time
+ * Zwraca: brak
+ * Współpracuje z: particles[]
+ */
+function updateParticles(dt) {
+  for (const p of particles) {
+    p.x  += p.vx * dt;
+    p.y  += p.vy * dt;
+    p.vy += 0.15 * dt;     // mini-grawitacja
+    p.life -= p.decay * dt;
+  }
+  // usuń martwe cząsteczki
+  for (let i = particles.length - 1; i >= 0; i--) {
+    if (particles[i].life <= 0) particles.splice(i, 1);
+  }
+}
+
+// ─────────────────────────────────────────────
+// 12. MECHANIKA GRY – PUNKTACJA I POZIOMY
+// ─────────────────────────────────────────────
+
+/**
+ * refillTokens()
+ * Cel: Gdy na scenie zostanie mniej niż 3 tokeny, uzupełnia ich liczbę.
+ * Kiedy wywoływana: Co klatkę przez update().
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: tokens[], spawnTokens()
+ */
+function refillTokens() {
+  const active = tokens.filter(t => !t.collected).length;
+  if (active < 3) {
+    tokens.push(...spawnTokens(5));
+  }
+}
+
+/**
+ * checkLevelUp()
+ * Cel: Sprawdza warunek awansu (score >= próg) i wywołuje levelUp().
+ * Kiedy wywoływana: Co klatkę przez update().
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: score, level, levelUp()
+ */
+function checkLevelUp() {
+  const threshold = level * 300;
+  if (score >= threshold) levelUp();
+}
+
+/**
+ * levelUp()
+ * Cel: Podnosi poziom, regeneruje Bugi i platformy, pokazuje ekran awansu.
+ * Kiedy wywoływana: Przez checkLevelUp() gdy osiągnięto próg punktów.
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: level, createPlatforms(), spawnBugs(), showScreen()
+ */
+function levelUp() {
+  level++;
+  platforms = createPlatforms(level);
+  bugs      = spawnBugs(2 + level);
+  tokens    = spawnTokens(8 + level * 2);
+
+  levelupTitle.textContent = `Poziom ${level}!`;
+  levelupMsg.textContent   = `Bugi są ${Math.round((1.5 + level * 0.4) * 10) / 10}× szybsze. Zdobądź ${level * 300} pkt!`;
+
+  showScreen('levelup');
+  setTimeout(() => { if (state === 'levelup') showScreen('playing'); }, 2200);
+}
+
+/**
+ * endGame()
+ * Cel: Kończy rozgrywkę – zatrzymuje pętlę, pokazuje ekran Game Over z wynikiem.
+ * Kiedy wywoływana: Przez takeDamage() gdy lives === 0.
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: score, finalScore, finalMsg, showScreen()
+ */
+function endGame() {
+  state = 'gameover';
+  finalScore.textContent = score;
+  const msgs = [
+    'Nie poddawaj się – każdy bug to lekcja!',
+    'Dobry wynik! Spróbuj pobić rekord.',
+    'Programowanie to maraton, nie sprint.',
+    'Zebrane koncepty zostaną z Tobą na zawsze!',
+  ];
+  finalMsg.textContent = score > 500
+    ? '🏆 Świetny wynik! Jesteś prawdziwym Code Runnerem!'
+    : msgs[Math.floor(Math.random() * msgs.length)];
+  showScreen('gameover');
+}
+
+// ─────────────────────────────────────────────
+// 13. RENDEROWANIE
+// ─────────────────────────────────────────────
+
+/**
+ * render()
+ * Cel: Rysuje cały kadr na canvas w odpowiedniej kolejności (od tła do UI).
+ * Kiedy wywoływana: Co klatkę przez gameLoop().
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: drawBackground(), drawPlatforms(), drawTokens(), drawBugs(),
+ *                 drawParticles(), drawPlayer()
+ */
+function render() {
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  drawBackground();
+  drawPlatforms();
+  drawTokens();
+  drawBugs();
+  drawParticles();
+  drawPlayer();
+  drawFloatingLabels();
+}
+
+/**
+ * drawBackground()
+ * Cel: Rysuje gradient nieba i gwiazdy z efektem paralaksy.
+ * Kiedy wywoływana: Na początku każdego render().
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: bgStars[], scrollOffset
+ */
+function drawBackground() {
+  const grad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+  grad.addColorStop(0,   '#0d1117');
+  grad.addColorStop(1,   '#161b22');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // gwiazdy (paralaksa)
+  for (const s of bgStars) {
+    const x = (s.x - scrollOffset * s.speed) % CANVAS_W;
+    ctx.globalAlpha = s.alpha;
+    ctx.fillStyle = '#c9d1d9';
+    ctx.beginPath();
+    ctx.arc(x < 0 ? x + CANVAS_W : x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // siatka kodu w tle
+  ctx.strokeStyle = 'rgba(48,54,61,0.35)';
+  ctx.lineWidth = 1;
+  const off = scrollOffset % 60;
+  for (let x = -off; x < CANVAS_W; x += 60) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GROUND_Y); ctx.stroke();
+  }
+  for (let y = 0; y < GROUND_Y; y += 60) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_W, y); ctx.stroke();
+  }
+}
+
+/**
+ * drawPlatforms()
+ * Cel: Rysuje wszystkie platformy z obramowaniem i podświetleniem górnej krawędzi.
+ * Kiedy wywoływana: Co klatkę przez render().
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: platforms[], ctx
+ */
+function drawPlatforms() {
+  for (const p of platforms) {
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.strokeStyle = '#58a6ff44';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(p.x, p.y, p.w, p.h);
+    // podświetlenie
+    ctx.fillStyle = '#58a6ff22';
+    ctx.fillRect(p.x, p.y, p.w, 3);
+  }
+}
+
+/**
+ * drawTokens()
+ * Cel: Rysuje tokeny jako świecące kółka z symbolem i animacją bujania.
+ * Kiedy wywoływana: Co klatkę przez render().
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: tokens[], ctx, performance.now()
+ */
+function drawTokens() {
+  const now = performance.now() / 1000;
+  for (const t of tokens) {
+    if (t.collected) continue;
+
+    const yOff = Math.sin(now * t.bobSpeed * 60 + t.bobOffset) * 5;
+    const glow = 0.5 + 0.5 * Math.sin(now * 3 + t.glowPhase);
+
+    // poświata
+    ctx.save();
+    ctx.shadowColor = t.concept.color;
+    ctx.shadowBlur  = 12 + glow * 10;
+    ctx.fillStyle   = t.concept.color + '44';
+    ctx.beginPath();
+    ctx.arc(t.x, t.y + yOff, t.r + 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // koło
+    ctx.fillStyle = t.concept.color;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y + yOff, t.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // symbol
+    ctx.fillStyle = '#0d1117';
+    ctx.font = 'bold 10px Courier New';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t.concept.symbol, t.x, t.y + yOff + 1);
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+}
+
+/**
+ * drawBugs()
+ * Cel: Rysuje Bugi jako robaki z animowanymi nogami i oczami.
+ * Kiedy wywoływana: Co klatkę przez render().
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: bugs[], ctx
+ */
+function drawBugs() {
+  for (const bug of bugs) {
+    // nogi (3 po każdej stronie)
+    ctx.strokeStyle = '#f85149';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      const legX = bug.x + 4 + i * 8;
+      const legSwing = Math.sin(bug.legPhase + i * 1.2) * 5;
+      ctx.beginPath();
+      ctx.moveTo(legX, bug.y + bug.h * .6);
+      ctx.lineTo(legX - 4, bug.y + bug.h + legSwing);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(legX, bug.y + bug.h * .6);
+      ctx.lineTo(legX + 4, bug.y + bug.h - legSwing);
+      ctx.stroke();
+    }
+
+    // ciało
+    ctx.fillStyle = '#f85149';
+    ctx.beginPath();
+    ctx.ellipse(bug.x + bug.w / 2, bug.y + bug.h / 2, bug.w / 2, bug.h / 2 - 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // cętki
+    ctx.fillStyle = '#b91c1c';
+    ctx.beginPath(); ctx.arc(bug.x + 8,  bug.y + 12, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(bug.x + 18, bug.y + 8,  2, 0, Math.PI * 2); ctx.fill();
+
+    // oczy
+    ctx.fillStyle = '#fff';
+    const eyeX = bug.vx > 0 ? bug.x + bug.w - 8 : bug.x + 6;
+    ctx.beginPath(); ctx.arc(eyeX,     bug.y + 6, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(eyeX + 5, bug.y + 6, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(eyeX + 1, bug.y + 6, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(eyeX + 6, bug.y + 6, 1.5, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+/**
+ * drawParticles()
+ * Cel: Rysuje aktywne cząsteczki efektów wizualnych z przezroczystością.
+ * Kiedy wywoływana: Co klatkę przez render().
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: particles[], ctx
+ */
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle   = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/**
+ * drawPlayer()
+ * Cel: Rysuje gracza jako postać w stylu pixel-art z animacją chodu i nietykalności.
+ * Kiedy wywoływana: Co klatkę przez render().
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: player{}, ctx
+ */
+function drawPlayer() {
+  const p = player;
+
+  // efekt nietykalności – miganie
+  if (p.invTimer > 0 && Math.floor(p.invTimer / 6) % 2 === 0) return;
+
+  ctx.save();
+
+  // odbicie poziome
+  if (!p.facingRight) {
+    ctx.translate(p.x + p.w / 2, 0);
+    ctx.scale(-1, 1);
+    ctx.translate(-(p.x + p.w / 2), 0);
+  }
+
+  // animacja chodu – lekki kołysanie
+  const bobY = p.onGround ? Math.abs(Math.sin(p.frame * Math.PI / 2)) * 2 : 0;
+
+  // nogi
+  ctx.fillStyle = '#1f6feb';
+  if (p.onGround) {
+    const legSwing = Math.sin(p.frame * Math.PI / 2) * 6;
+    ctx.fillRect(p.x + 4,  p.y + p.h - 16 + bobY + legSwing, 10, 16);
+    ctx.fillRect(p.x + 18, p.y + p.h - 16 + bobY - legSwing, 10, 16);
+  } else {
+    ctx.fillRect(p.x + 4,  p.y + p.h - 16, 10, 16);
+    ctx.fillRect(p.x + 18, p.y + p.h - 16, 10, 16);
+  }
+
+  // ciało
+  ctx.fillStyle = '#238636';
+  ctx.fillRect(p.x + 2, p.y + 14 + bobY, p.w - 4, p.h - 28);
+
+  // głowa
+  ctx.fillStyle = '#ffdba0';
+  ctx.fillRect(p.x + 6, p.y + bobY, p.w - 12, 16);
+
+  // oczy
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(p.x + 10, p.y + 4 + bobY, 4, 4);
+  ctx.fillRect(p.x + 18, p.y + 4 + bobY, 4, 4);
+
+  // usta (uśmiech)
+  ctx.strokeStyle = '#0d1117';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(p.x + p.w / 2, p.y + 11 + bobY, 4, 0, Math.PI);
+  ctx.stroke();
+
+  // czapka programisty
+  ctx.fillStyle = '#58a6ff';
+  ctx.fillRect(p.x + 4, p.y - 4 + bobY, p.w - 8, 7);
+  ctx.fillStyle = '#388bfd';
+  ctx.fillRect(p.x + 2, p.y + 1  + bobY, p.w - 4, 3);
+
+  // logo </>
+  ctx.fillStyle = '#0d1117';
+  ctx.font = 'bold 6px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('</>', p.x + p.w / 2, p.y + 2 + bobY);
+
+  // ręce
+  ctx.fillStyle = '#238636';
+  const armSwing = Math.sin(p.frame * Math.PI / 2) * 5;
+  ctx.fillRect(p.x - 4, p.y + 16 + bobY + armSwing,  8, 10);
+  ctx.fillRect(p.x + p.w - 4, p.y + 16 + bobY - armSwing, 8, 10);
+
+  ctx.restore();
+}
+
+/**
+ * drawFloatingLabels()
+ * Cel: Rysuje unoszące się etykiety wyników nad tokenami (feedback punktów).
+ *      Używa globalnej tablicy floatLabels.
+ * Kiedy wywoływana: Co klatkę przez render().
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: floatLabels[], ctx
+ */
+let floatLabels = [];
+
+function drawFloatingLabels() {
+  for (const lbl of floatLabels) {
+    ctx.globalAlpha = lbl.life;
+    ctx.fillStyle   = lbl.color;
+    ctx.font        = `bold ${lbl.size}px Courier New`;
+    ctx.textAlign   = 'center';
+    ctx.fillText(lbl.text, lbl.x, lbl.y);
+    lbl.y    -= 1.5;
+    lbl.life -= 0.018;
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign   = 'left';
+  floatLabels = floatLabels.filter(l => l.life > 0);
+}
+
+// ─────────────────────────────────────────────
+// 14. INTERFEJS UŻYTKOWNIKA
+// ─────────────────────────────────────────────
+
+/**
+ * updateHUD()
+ * Cel: Synchronizuje elementy HUD (wynik, życia, combo, pasek energii) ze stanem gry.
+ * Kiedy wywoływana: Co klatkę przez update().
+ * Argumenty: brak
+ * Zwraca: brak
+ * Współpracuje z: score, lives, level, combo, energy, elementy DOM
+ */
+function updateHUD() {
+  hudScore.textContent = score;
+  hudLevel.textContent = level;
+  hudCombo.textContent = `x${combo}`;
+  hudLives.textContent = '❤'.repeat(Math.max(0, lives));
+
+  const pct = Math.max(0, energy);
+  lifeBarFill.style.width = pct + '%';
+  lifeBarFill.style.background =
+    pct > 60 ? '#3fb950' : pct > 30 ? '#e3b341' : '#f85149';
+}
+
+/**
+ * showConceptPopup(text)
+ * Cel: Wyświetla krótki popup nad canvasem z nazwą zebranego konceptu lub komunikatem.
+ *      Automatycznie chowa się po 1.5s.
+ * Kiedy wywoływana: Przez checkTokenCollision() i takeDamage().
+ * Argumenty: text {string} – treść popupu
+ * Zwraca: brak
+ * Współpracuje z: conceptPopup (element DOM)
+ */
+let popupTimeout;
+function showConceptPopup(text) {
+  conceptPopup.textContent = '📘 ' + text;
+  conceptPopup.classList.add('show');
+  clearTimeout(popupTimeout);
+  popupTimeout = setTimeout(() => conceptPopup.classList.remove('show'), 1500);
+}
+
+/**
+ * showScreen(name)
+ * Cel: Zarządza widocznością ekranów nakładkowych i ustawia state.
+ * Kiedy wywoływana: Przez levelUp(), endGame(), obsługę przycisków.
+ * Argumenty: name {string} – 'start'|'playing'|'paused'|'gameover'|'levelup'
+ * Zwraca: brak
+ * Współpracuje z: state, screenStart, screenPause, screenGameover, screenLevelup
+ */
+function showScreen(name) {
+  state = name;
+  screenStart.classList.toggle('hidden',    name !== 'start');
+  screenPause.classList.toggle('hidden',    name !== 'paused');
+  screenGameover.classList.toggle('hidden', name !== 'gameover');
+  screenLevelup.classList.toggle('hidden',  name !== 'levelup');
+}
+
+// ─────────────────────────────────────────────
+// 15. OBSŁUGA ZDARZEŃ
+// ─────────────────────────────────────────────
+
+/**
+ * Zdarzenia klawiatury: keydown / keyup
+ * Cel: Rejestrują stan klawiszy w obiekcie `keys`. Obsługują też skróty (P = pauza).
+ * Kiedy wywoływane: Przez przeglądarkę na wciśnięcie/zwolnienie klawisza.
+ */
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+
+  if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault();
+  }
+
+  if (e.key === 'p' || e.key === 'P') {
+    if (state === 'playing') showScreen('paused');
+    else if (state === 'paused') showScreen('playing');
+  }
+});
+
+document.addEventListener('keyup', e => {
+  keys[e.key] = false;
+});
+
+/**
+ * Obsługa przycisku skoku myszą/dotykiem
+ * Cel: Pozwala skakać klikając przycisk "Skok" w panelu dolnym.
+ */
+document.getElementById('btn-jump').addEventListener('mousedown', () => {
+  if (state === 'playing') keys[' '] = true;
+});
+document.getElementById('btn-jump').addEventListener('mouseup', () => {
+  keys[' '] = false;
+});
+document.getElementById('btn-jump').addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (state === 'playing') keys[' '] = true;
+}, { passive: false });
+document.getElementById('btn-jump').addEventListener('touchend', () => {
+  keys[' '] = false;
+});
+
+/**
+ * Przyciski nawigacji i pauzy
+ */
+document.getElementById('btn-start').addEventListener('click', () => {
+  initGame();
+  showScreen('playing');
+  lastTime = performance.now();
+});
+
+document.getElementById('btn-resume').addEventListener('click', () => {
+  showScreen('playing');
+});
+
+document.getElementById('btn-restart').addEventListener('click', () => {
+  initGame();
+  showScreen('playing');
+  lastTime = performance.now();
+});
+
+document.getElementById('btn-restart-pause').addEventListener('click', () => {
+  initGame();
+  showScreen('playing');
+  lastTime = performance.now();
+});
+
+document.getElementById('btn-restart-ctrl').addEventListener('click', () => {
+  if (state !== 'start') {
+    initGame();
+    showScreen('playing');
+    lastTime = performance.now();
+  }
+});
+
+document.getElementById('btn-pause-ctrl').addEventListener('click', () => {
+  if (state === 'playing') showScreen('paused');
+  else if (state === 'paused') showScreen('playing');
+});
+
+/**
+ * Obsługa kursora myszy (schowanie domyślnego kursora w obrębie canvas)
+ * canvas ma cursor:none w CSS
+ */
+
+// ─────────────────────────────────────────────
+// 16. START APLIKACJI
+// ─────────────────────────────────────────────
+
+/**
+ * Inicjalizacja startowa
+ * Cel: Ustawia stan 'start', tworzy poglądową scenę i uruchamia pętlę animacji.
+ * Wywołanie: jednorazowo po załadowaniu skryptu.
+ */
+(function bootstrap() {
+  // inicjalizacja podglądowej sceny na ekranie startowym
+  score = 0; lives = 3; energy = 100; level = 1; combo = 1; comboTimer = 0;
+  scrollOffset = 0; particles = []; floatLabels = [];
+  player    = createPlayer();
+  platforms = createPlatforms(1);
+  tokens    = spawnTokens(10);
+  bugs      = spawnBugs(3);
+  bgStars   = createBgStars(60);
+  updateHUD();
+
+  showScreen('start');
+  lastTime = performance.now();
+  animationId = requestAnimationFrame(gameLoop);
+
+  // rysuj podgląd nawet na ekranie startowym
+  state = 'playing';
+  setTimeout(() => { state = 'start'; showScreen('start'); }, 50);
+})();
+
+</script>
+</body>
+</html>
